@@ -1,0 +1,29 @@
+{
+  "name": "pitzik4-ld38",
+  "version": "1.0.0",
+  "description": "Pitzik4's Ludum Dare 38 entry",
+  "main": "build/main.html",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pitzik4/LD38.git"
+  },
+  "author": "Pitzik4 <pitzik4@pitzik4.net>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Pitzik4/LD38/issues"
+  },
+  "homepage": "https://github.com/Pitzik4/LD38#readme",
+  "private": true,
+  "devDependencies": {
+    "gulp": "^3.9.1",
+    "gulp-buble": "^0.8.0",
+    "gulp-iife": "^0.3.0",
+    "gulp-uglify": "^2.1.2",
+    "rollup-stream": "^1.19.0",
+    "vinyl-buffer": "^1.0.0",
+    "vinyl-source-stream": "^1.1.0"
+  }
+}
