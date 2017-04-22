@@ -71,13 +71,16 @@ export function create(canvas) {
           prevY = curY;
           continue;
         }
-        const xPerY = (curX - prevX) / (curY - prevY);
-        for(; y < bottom; ++y, x += xPerY) {
-          if(y < 0 || y >= height) continue;
-          let intX = x |0;
-          if(intX >= width) continue;
-          if(intX < 0) intX = 0;
-          outline[y * oWidth + (intX >> 3)] ^= 1 << (intX & 7);
+        if(bottom > 0) {
+          if(bottom > height) bottom = height;
+          const xPerY = (curX - prevX) / (curY - prevY);
+          for(; y < bottom; ++y, x += xPerY) {
+            if(y < 0) continue;
+            let intX = x |0;
+            if(intX >= width) continue;
+            if(intX < 0) intX = 0;
+            outline[y * oWidth + (intX >> 3)] ^= 1 << (intX & 7);
+          }
         }
         prevX = curX;
         prevY = curY;
@@ -109,6 +112,70 @@ export function create(canvas) {
             outline[idx] = 0;
           }
         }
+      }
+    },
+    strokePolygon(points, plen, r, g, b, offsX, offsY) {
+      plen = Math.min(points.length, plen) |0;
+      r &= 255;
+      g &= 255;
+      b &= 255;
+      offsX |= 0;
+      offsY |= 0;
+      const width = imageData.width |0, height = imageData.height |0;
+      let prevX = points[plen - 2] + offsX, prevY = points[plen - 1] + offsY;
+      for(let i = 0; i < plen; i += 2) {
+        const curX = points[i] + offsX, curY = points[i + 1] + offsY;
+        if(Math.abs(curY - prevY) > Math.abs(curX - prevX)) {
+          let bottom, x, y;
+          if(curY > prevY) {
+            bottom = curY |0;
+            y = prevY |0;
+            x = prevX;
+          } else {
+            bottom = prevY |0;
+            y = curY |0;
+            x = curX;
+          }
+          if(bottom > 0) {
+            if(bottom > height) bottom = height;
+            const xPerY = (curX - prevX) / (curY - prevY);
+            for(; y < bottom; ++y, x += xPerY) {
+              if(y < 0) continue;
+              const intX = x |0;
+              if(intX < 0 || intX >= width) continue;
+              const idx = (y * width + intX) * 4;
+              pixels[idx    ] = r;
+              pixels[idx + 1] = g;
+              pixels[idx + 2] = b;
+            }
+          }
+        } else {
+          let right, x, y;
+          if(curX > prevX) {
+            right = curX |0;
+            x = prevX |0;
+            y = prevY;
+          } else {
+            right = prevX |0;
+            x = curX |0;
+            y = curY;
+          }
+          if(right > 0) {
+            if(right > width) right = width;
+            const yPerX = (curY - prevY) / (curX - prevX);
+            for(; x < right; ++x, y += yPerX) {
+              if(x < 0) continue;
+              const intY = y |0;
+              if(intY < 0 || intY >= height) continue;
+              const idx = (intY * width + x) * 4;
+              pixels[idx    ] = r;
+              pixels[idx + 1] = g;
+              pixels[idx + 2] = b;
+            }
+          }
+        }
+        prevX = curX;
+        prevY = curY;
       }
     },
   };
