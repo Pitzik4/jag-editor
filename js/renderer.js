@@ -1,14 +1,4 @@
-function byteArray(length) {
-  if(typeof Uint8Array === 'undefined') {
-    const out = [];
-    for(let i = 0; i < length; ++i) {
-      out.push(0);
-    }
-    return out;
-  } else {
-    return new Uint8Array(length);
-  }
-}
+import { byteArray } from './shims.js';
 
 export function create(canvas) {
   const ctx = canvas.getContext('2d', { alpha: false });
@@ -30,7 +20,7 @@ export function create(canvas) {
     for(let i = 3; i < pixels.length; i += 4) {
       pixels[i] = 255;
     }
-    oWidth = (canvas.width + 7) >>> 3;
+    oWidth = (canvas.width + 7) >> 3;
     if(!outline || outline.length !== oWidth * canvas.height) {
       outline = byteArray(oWidth * canvas.height);
     }
@@ -49,14 +39,19 @@ export function create(canvas) {
     commitFrame() {
       ctx.putImageData(imageData, 0, 0);
     },
-    fillPolygon(points, r, g, b) {
+    fillPolygon(points, plen, r, g, b, offsX, offsY) {
+      plen = Math.min(points.length, plen) |0;
+      r &= 255;
+      g &= 255;
+      b &= 255;
+      offsX |= 0;
+      offsY |= 0;
       const width = imageData.width |0, height = imageData.height |0;
       let minX = width, maxX = 0;
       let minY = height, maxY = 0;
-      const plen = points.length;
-      let prevX = points[plen - 2], prevY = points[plen - 1];
+      let prevX = points[plen - 2] + offsX, prevY = points[plen - 1] + offsY;
       for(let i = 0; i < plen; i += 2) {
-        const curX = points[i], curY = points[i + 1];
+        const curX = points[i] + offsX, curY = points[i + 1] + offsY;
         if(curX < minX) minX = curX;
         if(curX > maxX) maxX = curX;
         if(curY < minY) minY = curY;
@@ -82,7 +77,7 @@ export function create(canvas) {
           let intX = x |0;
           if(intX >= width) continue;
           if(intX < 0) intX = 0;
-          outline[y * oWidth + (intX >>> 3)] ^= 1 << (intX & 7);
+          outline[y * oWidth + (intX >> 3)] ^= 1 << (intX & 7);
         }
         prevX = curX;
         prevY = curY;
@@ -96,7 +91,7 @@ export function create(canvas) {
       //minX = minY = 0; maxX = maxY = 99; // XXX
       for(let y = minY; y <= maxY; ++y) {
         let penIsDown = false;
-        for(let x = minX & ~7, idx = y * oWidth + (x >>> 3), pixIdx = (y * width + x)*4; x <= maxX; x += 8, ++idx, pixIdx += 8*4) {
+        for(let x = minX & ~7, idx = y * oWidth + (x >> 3), pixIdx = (y * width + x)*4; x <= maxX; x += 8, ++idx, pixIdx += 8*4) {
           let register = outline[idx];
           if(penIsDown || register) {
             let iterationN = x + 7 <= maxX ? 0 : (x + 7 - maxX), pixIdxX = pixIdx;
@@ -109,7 +104,7 @@ export function create(canvas) {
                 pixels[pixIdxX + 1] = g;
                 pixels[pixIdxX + 2] = b;
               }
-              register >>>= 1; ++iterationN; pixIdxX += 4;
+              register >>= 1; ++iterationN; pixIdxX += 4;
             } while(register || (penIsDown && iterationN < 8));
             outline[idx] = 0;
           }
