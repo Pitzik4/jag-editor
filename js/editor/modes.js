@@ -166,37 +166,25 @@ export function mutate(prev, selectedPath, startPoint, startX, startY) {
           drawingAvgY /= dlen >> 1;
           
           let winding1AvgX = 0, winding1AvgY = 0, winding1Count = 0;
-          let winding1PhysLength = 0;
-          for(let i = startPoint*2; ;) {
+          for(let i = startPoint*2; ; i = (i + 2) % plen) {
             winding1AvgX += points[i];
             winding1AvgY += points[i + 1];
             ++winding1Count;
             if(i === endPoint*2) {
               break;
             }
-            const prevI = i;
-            i = (i + 2) % plen;
-            const dx = points[i    ] - points[prevI    ];
-            const dy = points[i + 1] - points[prevI + 1];
-            winding1PhysLength += Math.sqrt(dx*dx + dy*dy);
           }
           winding1AvgX /= winding1Count;
           winding1AvgY /= winding1Count;
           
           let winding2AvgX = 0, winding2AvgY = 0, winding2Count = 0;
-          let winding2PhysLength = 0;
-          for(let i = endPoint*2; ;) {
+          for(let i = endPoint*2; ; i = (i + 2) % plen) {
             winding2AvgX += points[i];
             winding2AvgY += points[i + 1];
             ++winding2Count;
             if(i === startPoint*2) {
               break;
             }
-            const prevI = i;
-            i = (i + 2) % plen;
-            const dx = points[i    ] - points[prevI    ];
-            const dy = points[i + 1] - points[prevI + 1];
-            winding2PhysLength += Math.sqrt(dx*dx + dy*dy);
           }
           winding2AvgX /= winding2Count;
           winding2AvgY /= winding2Count;
@@ -211,20 +199,45 @@ export function mutate(prev, selectedPath, startPoint, startX, startY) {
             winding1dx*winding1dx + winding1dy*winding1dy
           ) {
             // winding 1 (startPoint..endPoint) is closer.
-            if(endPoint >= startPoint) {
-              points.splice(startPoint*2, endPoint*2 - startPoint*2 + 2);
-              for(let i = 0; i < dlen; i += 2) {
-                points.splice(startPoint*2 + i, 0, drawing[i], drawing[i + 1]);
+            if(winding1Count <= 1) {
+              // this probably won't happen, but let's not try to handle it.
+              return prev;
+            }
+            
+            const stepLength = dPhysLength / (winding1Count - 1);
+            let debt = 0;
+            for(let i = 2, pointsI = startPoint*2; i < dlen; i += 2) {
+              let x1 = drawing[i - 2], y1 = drawing[i - 1];
+              const x2 = drawing[i    ], y2 = drawing[i + 1];
+              const dx = x2 - x1, dy = y2 - y1;
+              let length = Math.sqrt(dx*dx + dy*dy);
+              const nx = dx / length, ny = dy / length; // normalized
+              if(length > stepLength - debt) {
+                x1 += nx * (stepLength - debt);
+                y1 += ny * (stepLength - debt);
+                length -= stepLength - debt;
+                pointsI = (pointsI + 2) % plen;
+                points[pointsI    ] = x1;
+                points[pointsI + 1] = y1;
+                debt = 0;
+                while(length > stepLength) {
+                  x1 += nx * stepLength;
+                  y1 += ny * stepLength;
+                  length -= stepLength;
+                  pointsI = (pointsI + 2) % plen;
+                  points[pointsI    ] = x1;
+                  points[pointsI + 1] = y1;
+                }
               }
-            } else {
-              points.length = startPoint*2;
-              points.splice(0, endPoint*2 + 2);
-              for(let i = 0; i < dlen; ++i) {
-                points.push(drawing[i]);
-              }
+              debt += length;
             }
           } else {
             // winding 2 (endPoint..startPoint) is closer.
+            if(winding2Count <= 1) {
+              // this probably won't happen, but let's not try to handle it.
+              return prev;
+            }
+            
             // reverse the drawing.
             for(let i = 0; i < dlen >> 1; i += 2) {
               const tx = drawing[i], ty = drawing[i + 1];
@@ -233,17 +246,33 @@ export function mutate(prev, selectedPath, startPoint, startX, startY) {
               drawing[dlen - i - 2] = tx;
               drawing[dlen - i - 1] = ty;
             }
-            if(startPoint >= endPoint) {
-              points.splice(endPoint*2, startPoint*2 - endPoint*2 + 2);
-              for(let i = 0; i < dlen; i += 2) {
-                points.splice(endPoint*2 + i, 0, drawing[i], drawing[i + 1]);
+            
+            const stepLength = dPhysLength / (winding2Count - 1);
+            let debt = 0;
+            for(let i = 2, pointsI = endPoint*2; i < dlen; i += 2) {
+              let x1 = drawing[i - 2], y1 = drawing[i - 1];
+              const x2 = drawing[i    ], y2 = drawing[i + 1];
+              const dx = x2 - x1, dy = y2 - y1;
+              let length = Math.sqrt(dx*dx + dy*dy);
+              const nx = dx / length, ny = dy / length; // normalized
+              if(length > stepLength - debt) {
+                x1 += nx * (stepLength - debt);
+                y1 += ny * (stepLength - debt);
+                length -= stepLength - debt;
+                pointsI = (pointsI + 2) % plen;
+                points[pointsI    ] = x1;
+                points[pointsI + 1] = y1;
+                debt = 0;
+                while(length > stepLength) {
+                  x1 += nx * stepLength;
+                  y1 += ny * stepLength;
+                  length -= stepLength;
+                  pointsI = (pointsI + 2) % plen;
+                  points[pointsI    ] = x1;
+                  points[pointsI + 1] = y1;
+                }
               }
-            } else {
-              points.length = endPoint*2;
-              points.splice(0, startPoint*2 + 2);
-              for(let i = 0; i < dlen; ++i) {
-                points.push(drawing[i]);
-              }
+              debt += length;
             }
           }
           
