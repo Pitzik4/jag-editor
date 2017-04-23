@@ -197,5 +197,23 @@ export function create(canvas) {
         prevY = curY;
       }
     },
+    containsPoint(points, x, y, offsX, offsY) {
+      const plen = points.length |0;
+      x -= offsX |0;
+      y -= offsY |0;
+      let prevX = points[plen - 2], prevY = points[plen - 1];
+      let out = false;
+      for(let i = 0; i < plen; i += 2) {
+        const curX = points[i], curY = points[i + 1];
+        const xPerY = (curX - prevX) / (curY - prevY);
+        if((y < curY) !== (y < prevY) && x < curX + (y - curY) * xPerY) {
+          //console.log(`${x}, ${y}: (${prevX}, ${prevY}) to (${curX}, ${curY})`);
+          out = !out;
+        }
+        prevX = curX;
+        prevY = curY;
+      }
+      return out;
+    },
   };
 }
