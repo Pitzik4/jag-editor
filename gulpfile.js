@@ -18,6 +18,16 @@ gulp.task('js', function() {
     .pipe(gulp.dest('./build'));
 });
 
+gulp.task('editor-js', function() {
+  return rollup({ entry: './js/editor/main.js', format: 'es' })
+    .pipe(source('main.js', './js/editor'))
+    .pipe(buffer())
+    .pipe(buble())
+    .pipe(iife())
+    //.pipe(uglify({ ie_proof: false }))
+    .pipe(gulp.dest('./build'));
+});
+
 gulp.task('assets', function() {
   return gulp.src('./assets/**/*')
     .pipe(gulp.dest('./build'));
@@ -28,3 +38,5 @@ gulp.task('watch', ['js'], function() {
 });
 
 gulp.task('default', ['assets', 'js']);
+
+gulp.task('editor', ['assets', 'editor-js']);

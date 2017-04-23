@@ -39,13 +39,15 @@ export function create(canvas) {
     commitFrame() {
       ctx.putImageData(imageData, 0, 0);
     },
-    fillPolygon(points, plen, r, g, b, offsX, offsY) {
-      plen = Math.min(points.length, plen) |0;
+    fillPolygon(points, r, g, b, offsX, offsY) {
+      const plen = points.length |0;
       r &= 255;
       g &= 255;
       b &= 255;
       offsX |= 0;
+      offsX += 0.5;
       offsY |= 0;
+      offsY += 0.5;
       const width = imageData.width |0, height = imageData.height |0;
       let minX = width, maxX = 0;
       let minY = height, maxY = 0;
@@ -85,23 +87,24 @@ export function create(canvas) {
         prevX = curX;
         prevY = curY;
       }
+      minX |= 0;
+      minY |= 0;
+      maxX = Math.ceil(maxX) |0;
+      maxY = Math.ceil(maxY) |0;
       if(minX < 0) minX = 0;
       if(minY < 0) minY = 0;
       if(maxX >= width) maxX = width - 1;
       else if(maxX < minX) maxX = minX;
       if(maxY >= height) maxY = height - 1;
       else if(maxY < minY) maxY = minY;
-      //minX = minY = 0; maxX = maxY = 99; // XXX
       for(let y = minY; y <= maxY; ++y) {
-        let penIsDown = false;
+        let penIsDown = 0;
         for(let x = minX & ~7, idx = y * oWidth + (x >> 3), pixIdx = (y * width + x)*4; x <= maxX; x += 8, ++idx, pixIdx += 8*4) {
           let register = outline[idx];
           if(penIsDown || register) {
             let iterationN = x + 7 <= maxX ? 0 : (x + 7 - maxX), pixIdxX = pixIdx;
             do {
-              if(register & 1) {
-                penIsDown = !penIsDown;
-              }
+              penIsDown ^= register & 1;
               if(penIsDown) {
                 pixels[pixIdxX    ] = r;
                 pixels[pixIdxX + 1] = g;
@@ -114,8 +117,8 @@ export function create(canvas) {
         }
       }
     },
-    strokePolygon(points, plen, r, g, b, offsX, offsY) {
-      plen = Math.min(points.length, plen) |0;
+    strokePolygon(points, r, g, b, offsX, offsY) {
+      const plen = points.length |0;
       r &= 255;
       g &= 255;
       b &= 255;
@@ -126,51 +129,67 @@ export function create(canvas) {
       for(let i = 0; i < plen; i += 2) {
         const curX = points[i] + offsX, curY = points[i + 1] + offsY;
         if(Math.abs(curY - prevY) > Math.abs(curX - prevX)) {
-          let bottom, x, y;
-          if(curY > prevY) {
-            bottom = curY |0;
-            y = prevY |0;
-            x = prevX;
+          if(prevY > curY) {
+            let bottom = prevY |0, x = curX, y = curY |0;
+            if(bottom > 0) {
+              if(bottom > height) bottom = height;
+              const xPerY = (curX - prevX) / (curY - prevY);
+              for(; y < bottom; ++y, x += xPerY) {
+                if(y < 0) continue;
+                const intX = x |0;
+                if(intX < 0 || intX >= width) continue;
+                const idx = (y * width + intX) * 4;
+                pixels[idx    ] = r;
+                pixels[idx + 1] = g;
+                pixels[idx + 2] = b;
+              }
+            }
           } else {
-            bottom = prevY |0;
-            y = curY |0;
-            x = curX;
-          }
-          if(bottom > 0) {
-            if(bottom > height) bottom = height;
-            const xPerY = (curX - prevX) / (curY - prevY);
-            for(; y < bottom; ++y, x += xPerY) {
-              if(y < 0) continue;
-              const intX = x |0;
-              if(intX < 0 || intX >= width) continue;
-              const idx = (y * width + intX) * 4;
-              pixels[idx    ] = r;
-              pixels[idx + 1] = g;
-              pixels[idx + 2] = b;
+            let top = prevY |0, x = curX, y = curY |0;
+            if(top < height - 1) {
+              if(top < -1) top = -1;
+              const xPerY = (curX - prevX) / (curY - prevY);
+              for(; y > top; --y, x -= xPerY) {
+                if(y >= height) continue;
+                const intX = x |0;
+                if(intX < 0 || intX >= width) continue;
+                const idx = (y * width + intX) * 4;
+                pixels[idx    ] = r;
+                pixels[idx + 1] = g;
+                pixels[idx + 2] = b;
+              }
             }
           }
         } else {
-          let right, x, y;
-          if(curX > prevX) {
-            right = curX |0;
-            x = prevX |0;
-            y = prevY;
+          if(prevX > curX) {
+            let right = prevX |0, x = curX |0, y = curY;
+            if(right > 0) {
+              if(right > width) right = width;
+              const yPerX = (curY - prevY) / (curX - prevX);
+              for(; x < right; ++x, y += yPerX) {
+                if(x < 0) continue;
+                const intY = y |0;
+                if(intY < 0 || intY >= height) continue;
+                const idx = (intY * width + x) * 4;
+                pixels[idx    ] = r;
+                pixels[idx + 1] = g;
+                pixels[idx + 2] = b;
+              }
+            }
           } else {
-            right = prevX |0;
-            x = curX |0;
-            y = curY;
-          }
-          if(right > 0) {
-            if(right > width) right = width;
-            const yPerX = (curY - prevY) / (curX - prevX);
-            for(; x < right; ++x, y += yPerX) {
-              if(x < 0) continue;
-              const intY = y |0;
-              if(intY < 0 || intY >= height) continue;
-              const idx = (intY * width + x) * 4;
-              pixels[idx    ] = r;
-              pixels[idx + 1] = g;
-              pixels[idx + 2] = b;
+            let left = prevX |0, x = curX |0, y = curY;
+            if(left < width - 1) {
+              if(left < -1) left = -1;
+              const yPerX = (curY - prevY) / (curX - prevX);
+              for(; x > left; --x, y -= yPerX) {
+                if(x >= width) continue;
+                const intY = y |0;
+                if(intY < 0 || intY >= height) continue;
+                const idx = (intY * width + x) * 4;
+                pixels[idx    ] = r;
+                pixels[idx + 1] = g;
+                pixels[idx + 2] = b;
+              }
             }
           }
         }
