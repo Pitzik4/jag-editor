@@ -1,3 +1,5 @@
+import * as Path from './path.js';
+
 export function normal(selectedPath) {
   let selectedSubpath = -1, selectionStart = 0, selectionEnd = 0;
   
@@ -24,7 +26,16 @@ export function normal(selectedPath) {
             return mutateStart(this, selectedPath);
           }
         } else if(key === 'a') { //// (A)ppend
-          
+          if(!selectedPath) {
+            selectedPath = Path.create();
+            paths.push(selectedPath);
+            selectedPath.color = {
+              r: (Math.random() * 256) & 255,
+              g: (Math.random() * 256) & 255,
+              b: (Math.random() * 256) & 255,
+            };
+          }
+          return drawAndAppend(this, selectedPath);
         }
       }
     },
@@ -131,8 +142,6 @@ export function mutate(prev, selectedPath, pathIndex, startPoint, startX, startY
       mouseX += offsX;
       mouseY += offsY;
       
-      const prevX = drawing[drawing.length - 2], prevY = drawing[drawing.length - 1];
-      
       function getIntersection(x1, y1, x2, y2) {
         x2 -= x1;
         y2 -= y1;
@@ -152,6 +161,8 @@ export function mutate(prev, selectedPath, pathIndex, startPoint, startX, startY
         }
         return -1;
       }
+      
+      const prevX = drawing[drawing.length - 2], prevY = drawing[drawing.length - 1];
       
       if(Math.max(Math.abs(mouseX - prevX), Math.abs(mouseY - prevY)) >= 0.1) {
         let endPoint = -1;
@@ -298,7 +309,94 @@ export function mutate(prev, selectedPath, pathIndex, startPoint, startX, startY
   };
 }
 
-function addHook(subordinate, key, action) {
+export function drawAndAppend(prev, selectedPath) {
+  const drawing = [];
+  let amDrawing = false;
+  
+  const pathX = selectedPath.x |0;
+  const pathY = selectedPath.y |0;
+  
+  return {
+    update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys) {
+      mouseX -= pathX;
+      mouseY -= pathY;
+      
+      if(mouseDown) {
+        if(!amDrawing) {
+          // begin
+          drawing.push(mouseX, mouseY);
+        } else {
+          const prevX = drawing[drawing.length - 2], prevY = drawing[drawing.length - 1];
+          
+          if(Math.max(Math.abs(mouseX - prevX), Math.abs(mouseY - prevY)) >= 0.1) {
+            drawing.push(mouseX, mouseY);
+          }
+        }
+        
+        amDrawing = true;
+      } else if(amDrawing) {
+        // finish
+        
+        const dlen = drawing.length |0;
+        
+        let dPhysLength = 0;
+        for(let i = 0; i < dlen; i += 2) {
+          const dx = drawing[i    ] - drawing[(i + dlen - 2) % dlen];
+          const dy = drawing[i + 1] - drawing[(i + dlen - 1) % dlen];
+          dPhysLength += Math.sqrt(dx*dx + dy*dy);
+        }
+        
+        const points = [];
+        
+        const stepLength = dPhysLength / 3600;
+        let debt = 0;
+        for(let i = 0; i < dlen; i += 2) {
+          let x1 = drawing[(i + dlen - 2) % dlen], y1 = drawing[(i + dlen - 1) % dlen];
+          const x2 = drawing[i    ], y2 = drawing[i + 1];
+          const dx = x2 - x1, dy = y2 - y1;
+          let length = Math.sqrt(dx*dx + dy*dy);
+          const nx = dx / length, ny = dy / length; // normalized
+          if(length > stepLength - debt) {
+            x1 += nx * (stepLength - debt);
+            y1 += ny * (stepLength - debt);
+            length -= stepLength - debt;
+            points.push(x1, y1);
+            debt = 0;
+            while(length > stepLength) {
+              x1 += nx * stepLength;
+              y1 += ny * stepLength;
+              length -= stepLength;
+              points.push(x1, y1);
+            }
+          }
+          debt += length;
+        }
+        
+        selectedPath.subpaths.push(points);
+        
+        return prev;
+      }
+    },
+    render(ctx, scale) {
+      const lineWidth = 2 / scale;
+      
+      ctx.beginPath();
+      ctx.moveTo(drawing[0] + pathX, drawing[1] + pathY);
+      for(let i = 2; i < drawing.length; i += 2) {
+        ctx.lineTo(drawing[i] + pathX, drawing[i + 1] + pathY);
+      }
+      
+      ctx.strokeStyle = 'black';
+      ctx.lineWidth = lineWidth * 2;
+      ctx.stroke();
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = lineWidth * 1;
+      ctx.stroke();
+    },
+  };
+}
+
+export function addHook(subordinate, key, action) {
   key = key.toLowerCase();
   
   return {
@@ -330,11 +428,11 @@ function renderOutline(ctx, scale, path, selectedSubpath, selectionStart, select
   ctx.lineJoin = 'round';
   
   function getX(pathIndex, i) {
-    const points = path.subpaths[pathIndex], plen = points.length |0;
+    const points = path.subpaths[pathIndex], plen = points.length >> 1;
     return points[((i + plen) % plen) * 2] + offsX;
   }
   function getY(pathIndex, i) {
-    const points = path.subpaths[pathIndex], plen = points.length |0;
+    const points = path.subpaths[pathIndex], plen = points.length >> 1;
     return points[((i + plen) % plen) * 2 + 1] + offsY;
   }
   
