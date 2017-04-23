@@ -39,8 +39,7 @@ export function create(canvas) {
     commitFrame() {
       ctx.putImageData(imageData, 0, 0);
     },
-    fillPolygon(points, r, g, b, offsX, offsY) {
-      const plen = points.length |0;
+    fillPolygon(subpaths, r, g, b, offsX, offsY) {
       r &= 255;
       g &= 255;
       b &= 255;
@@ -51,41 +50,45 @@ export function create(canvas) {
       const width = imageData.width |0, height = imageData.height |0;
       let minX = width, maxX = 0;
       let minY = height, maxY = 0;
-      let prevX = points[plen - 2] + offsX, prevY = points[plen - 1] + offsY;
-      for(let i = 0; i < plen; i += 2) {
-        const curX = points[i] + offsX, curY = points[i + 1] + offsY;
-        if(curX < minX) minX = curX;
-        if(curX > maxX) maxX = curX;
-        if(curY < minY) minY = curY;
-        if(curY > maxY) maxY = curY;
-        const y1 = curY |0, y2 = prevY |0;
-        let bottom, x, y;
-        if(y1 > y2) {
-          bottom = y1;
-          y = y2;
-          x = prevX;
-        } else if(y1 < y2) {
-          bottom = y2;
-          y = y1;
-          x = curX;
-        } else {
+      for(let pathIndex = 0; pathIndex < subpaths.length; ++pathIndex) {
+        const points = subpaths[pathIndex];
+        const plen = points.length |0;
+        let prevX = points[plen - 2] + offsX, prevY = points[plen - 1] + offsY;
+        for(let i = 0; i < plen; i += 2) {
+          const curX = points[i] + offsX, curY = points[i + 1] + offsY;
+          if(curX < minX) minX = curX;
+          if(curX > maxX) maxX = curX;
+          if(curY < minY) minY = curY;
+          if(curY > maxY) maxY = curY;
+          const y1 = curY |0, y2 = prevY |0;
+          let bottom, x, y;
+          if(y1 > y2) {
+            bottom = y1;
+            y = y2;
+            x = prevX;
+          } else if(y1 < y2) {
+            bottom = y2;
+            y = y1;
+            x = curX;
+          } else {
+            prevX = curX;
+            prevY = curY;
+            continue;
+          }
+          if(bottom > 0) {
+            if(bottom > height) bottom = height;
+            const xPerY = (curX - prevX) / (curY - prevY);
+            for(; y < bottom; ++y, x += xPerY) {
+              if(y < 0) continue;
+              let intX = x |0;
+              if(intX >= width) continue;
+              if(intX < 0) intX = 0;
+              outline[y * oWidth + (intX >> 3)] ^= 1 << (intX & 7);
+            }
+          }
           prevX = curX;
           prevY = curY;
-          continue;
         }
-        if(bottom > 0) {
-          if(bottom > height) bottom = height;
-          const xPerY = (curX - prevX) / (curY - prevY);
-          for(; y < bottom; ++y, x += xPerY) {
-            if(y < 0) continue;
-            let intX = x |0;
-            if(intX >= width) continue;
-            if(intX < 0) intX = 0;
-            outline[y * oWidth + (intX >> 3)] ^= 1 << (intX & 7);
-          }
-        }
-        prevX = curX;
-        prevY = curY;
       }
       minX |= 0;
       minY |= 0;
@@ -117,101 +120,106 @@ export function create(canvas) {
         }
       }
     },
-    strokePolygon(points, r, g, b, offsX, offsY) {
-      const plen = points.length |0;
+    strokePolygon(subpaths, r, g, b, offsX, offsY) {
       r &= 255;
       g &= 255;
       b &= 255;
       offsX |= 0;
       offsY |= 0;
       const width = imageData.width |0, height = imageData.height |0;
-      let prevX = points[plen - 2] + offsX, prevY = points[plen - 1] + offsY;
-      for(let i = 0; i < plen; i += 2) {
-        const curX = points[i] + offsX, curY = points[i + 1] + offsY;
-        if(Math.abs(curY - prevY) > Math.abs(curX - prevX)) {
-          if(prevY > curY) {
-            let bottom = prevY |0, x = curX, y = curY |0;
-            if(bottom > 0) {
-              if(bottom > height) bottom = height;
-              const xPerY = (curX - prevX) / (curY - prevY);
-              for(; y < bottom; ++y, x += xPerY) {
-                if(y < 0) continue;
-                const intX = x |0;
-                if(intX < 0 || intX >= width) continue;
-                const idx = (y * width + intX) * 4;
-                pixels[idx    ] = r;
-                pixels[idx + 1] = g;
-                pixels[idx + 2] = b;
+      for(let pathIndex = 0; pathIndex < subpaths.length; ++pathIndex) {
+        const points = subpaths[pathIndex];
+        const plen = points.length |0;
+        let prevX = points[plen - 2] + offsX, prevY = points[plen - 1] + offsY;
+        for(let i = 0; i < plen; i += 2) {
+          const curX = points[i] + offsX, curY = points[i + 1] + offsY;
+          if(Math.abs(curY - prevY) > Math.abs(curX - prevX)) {
+            if(prevY > curY) {
+              let bottom = prevY |0, x = curX, y = curY |0;
+              if(bottom > 0) {
+                if(bottom > height) bottom = height;
+                const xPerY = (curX - prevX) / (curY - prevY);
+                for(; y < bottom; ++y, x += xPerY) {
+                  if(y < 0) continue;
+                  const intX = x |0;
+                  if(intX < 0 || intX >= width) continue;
+                  const idx = (y * width + intX) * 4;
+                  pixels[idx    ] = r;
+                  pixels[idx + 1] = g;
+                  pixels[idx + 2] = b;
+                }
+              }
+            } else {
+              let top = prevY |0, x = curX, y = curY |0;
+              if(top < height - 1) {
+                if(top < -1) top = -1;
+                const xPerY = (curX - prevX) / (curY - prevY);
+                for(; y > top; --y, x -= xPerY) {
+                  if(y >= height) continue;
+                  const intX = x |0;
+                  if(intX < 0 || intX >= width) continue;
+                  const idx = (y * width + intX) * 4;
+                  pixels[idx    ] = r;
+                  pixels[idx + 1] = g;
+                  pixels[idx + 2] = b;
+                }
               }
             }
           } else {
-            let top = prevY |0, x = curX, y = curY |0;
-            if(top < height - 1) {
-              if(top < -1) top = -1;
-              const xPerY = (curX - prevX) / (curY - prevY);
-              for(; y > top; --y, x -= xPerY) {
-                if(y >= height) continue;
-                const intX = x |0;
-                if(intX < 0 || intX >= width) continue;
-                const idx = (y * width + intX) * 4;
-                pixels[idx    ] = r;
-                pixels[idx + 1] = g;
-                pixels[idx + 2] = b;
+            if(prevX > curX) {
+              let right = prevX |0, x = curX |0, y = curY;
+              if(right > 0) {
+                if(right > width) right = width;
+                const yPerX = (curY - prevY) / (curX - prevX);
+                for(; x < right; ++x, y += yPerX) {
+                  if(x < 0) continue;
+                  const intY = y |0;
+                  if(intY < 0 || intY >= height) continue;
+                  const idx = (intY * width + x) * 4;
+                  pixels[idx    ] = r;
+                  pixels[idx + 1] = g;
+                  pixels[idx + 2] = b;
+                }
+              }
+            } else {
+              let left = prevX |0, x = curX |0, y = curY;
+              if(left < width - 1) {
+                if(left < -1) left = -1;
+                const yPerX = (curY - prevY) / (curX - prevX);
+                for(; x > left; --x, y -= yPerX) {
+                  if(x >= width) continue;
+                  const intY = y |0;
+                  if(intY < 0 || intY >= height) continue;
+                  const idx = (intY * width + x) * 4;
+                  pixels[idx    ] = r;
+                  pixels[idx + 1] = g;
+                  pixels[idx + 2] = b;
+                }
               }
             }
           }
-        } else {
-          if(prevX > curX) {
-            let right = prevX |0, x = curX |0, y = curY;
-            if(right > 0) {
-              if(right > width) right = width;
-              const yPerX = (curY - prevY) / (curX - prevX);
-              for(; x < right; ++x, y += yPerX) {
-                if(x < 0) continue;
-                const intY = y |0;
-                if(intY < 0 || intY >= height) continue;
-                const idx = (intY * width + x) * 4;
-                pixels[idx    ] = r;
-                pixels[idx + 1] = g;
-                pixels[idx + 2] = b;
-              }
-            }
-          } else {
-            let left = prevX |0, x = curX |0, y = curY;
-            if(left < width - 1) {
-              if(left < -1) left = -1;
-              const yPerX = (curY - prevY) / (curX - prevX);
-              for(; x > left; --x, y -= yPerX) {
-                if(x >= width) continue;
-                const intY = y |0;
-                if(intY < 0 || intY >= height) continue;
-                const idx = (intY * width + x) * 4;
-                pixels[idx    ] = r;
-                pixels[idx + 1] = g;
-                pixels[idx + 2] = b;
-              }
-            }
-          }
+          prevX = curX;
+          prevY = curY;
         }
-        prevX = curX;
-        prevY = curY;
       }
     },
-    containsPoint(points, x, y, offsX, offsY) {
-      const plen = points.length |0;
+    containsPoint(subpaths, x, y, offsX, offsY) {
       x -= offsX |0;
       y -= offsY |0;
-      let prevX = points[plen - 2], prevY = points[plen - 1];
       let out = false;
-      for(let i = 0; i < plen; i += 2) {
-        const curX = points[i], curY = points[i + 1];
-        const xPerY = (curX - prevX) / (curY - prevY);
-        if((y < curY) !== (y < prevY) && x < curX + (y - curY) * xPerY) {
-          //console.log(`${x}, ${y}: (${prevX}, ${prevY}) to (${curX}, ${curY})`);
-          out = !out;
+      for(let pathIndex = 0; pathIndex < subpaths.length; ++pathIndex) {
+        const points = subpaths[pathIndex];
+        const plen = points.length |0;
+        let prevX = points[plen - 2], prevY = points[plen - 1];
+        for(let i = 0; i < plen; i += 2) {
+          const curX = points[i], curY = points[i + 1];
+          const xPerY = (curX - prevX) / (curY - prevY);
+          if((y < curY) !== (y < prevY) && x < curX + (y - curY) * xPerY) {
+            out = !out;
+          }
+          prevX = curX;
+          prevY = curY;
         }
-        prevX = curX;
-        prevY = curY;
       }
       return out;
     },

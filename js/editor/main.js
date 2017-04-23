@@ -9,13 +9,14 @@ const renderer = Renderer.create(pixels);
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d', { alpha: false });
 
-const rectangle = [0, 60, 80, 60, 80, 0, 0, 0];
+const rectangle = [[0, 60, 80, 60, 80, 0, 0, 0]];
 const paths = [Path.create()];
 paths[0].color = { r: 128, g: 0, b: 255 };
+paths[0].subpaths.push([]);
 for(let i = 0; i < 1800*2; ++i) {
-  paths[0].points.push(Math.cos(i * Math.PI / 1800) * 30 + 40, Math.sin(i * Math.PI / 1800) * 30 + 30);
+  paths[0].subpaths[0].push(Math.cos(i * Math.PI / 1800) * 30 + 40, Math.sin(i * Math.PI / 1800) * 30 + 30);
 }
-//paths[0].points = [15, 55, 65, 55, 40, 5];
+//paths[0].subpaths[0] = [15, 55, 65, 55, 40, 5];
 let mode = Modes.normal();
 
 function frame(time) {
@@ -51,7 +52,7 @@ function frame(time) {
   renderer.beginFrame(80, 60);
   renderer.fillPolygon(rectangle, 0, 0, 0);
   for(let i = 0, len = paths.length; i < len; ++i) {
-    renderer.fillPolygon(paths[i].points, paths[i].color.r, paths[i].color.g, paths[i].color.b, paths[i].x, paths[i].y);
+    renderer.fillPolygon(paths[i].subpaths, paths[i].color.r, paths[i].color.g, paths[i].color.b, paths[i].x, paths[i].y);
   }
   renderer.commitFrame();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
