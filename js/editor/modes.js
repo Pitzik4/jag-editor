@@ -36,6 +36,12 @@ export function normal(selectedPath) {
             };
           }
           return drawAndAppend(this, selectedPath);
+        } else if(key === 'delete') {
+          const index = paths.indexOf(selectedPath);
+          if(index !== -1) {
+            paths.splice(index, 1);
+          }
+          selectedPath = undefined;
         }
       }
     },
