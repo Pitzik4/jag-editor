@@ -138,14 +138,115 @@ export function mutate(prev, selectedPath, startPoint, startX, startY) {
       }
       
       if(Math.max(Math.abs(mouseX - prevX), Math.abs(mouseY - prevY)) >= 0.1) {
-        let intersectedPoint = -1;
+        let endPoint = -1;
         if(Math.max(Math.abs(mouseX - startPointX), Math.abs(mouseY - startPointY)) >= 1) {
-          intersectedPoint = getIntersection(prevX, prevY, mouseX, mouseY);
+          endPoint = getIntersection(prevX, prevY, mouseX, mouseY);
         }
-        if(intersectedPoint === -1) {
+        if(endPoint === -1) {
           drawing.push(mouseX, mouseY);
         } else {
-          // do your thing
+          const points = selectedPath.points, plen = points.length |0;
+          
+          drawing.push(selectedPath.points[endPoint*2], selectedPath.points[endPoint*2+1]);
+          const dlen = drawing.length |0;
+          
+          let dPhysLength = 0;
+          for(let i = 2; i < dlen; i += 2) {
+            const dx = drawing[i    ] - drawing[i - 2];
+            const dy = drawing[i + 1] - drawing[i - 1];
+            dPhysLength += Math.sqrt(dx*dx + dy*dy);
+          }
+          
+          let drawingAvgX = 0, drawingAvgY = 0;
+          for(let i = 0, len = drawing.length; i < len; i += 2) {
+            drawingAvgX += drawing[i];
+            drawingAvgY += drawing[i + 1];
+          }
+          drawingAvgX /= dlen >> 1;
+          drawingAvgY /= dlen >> 1;
+          
+          let winding1AvgX = 0, winding1AvgY = 0, winding1Count = 0;
+          let winding1PhysLength = 0;
+          for(let i = startPoint*2; ;) {
+            winding1AvgX += points[i];
+            winding1AvgY += points[i + 1];
+            ++winding1Count;
+            if(i === endPoint*2) {
+              break;
+            }
+            const prevI = i;
+            i = (i + 2) % plen;
+            const dx = points[i    ] - points[prevI    ];
+            const dy = points[i + 1] - points[prevI + 1];
+            winding1PhysLength += Math.sqrt(dx*dx + dy*dy);
+          }
+          winding1AvgX /= winding1Count;
+          winding1AvgY /= winding1Count;
+          
+          let winding2AvgX = 0, winding2AvgY = 0, winding2Count = 0;
+          let winding2PhysLength = 0;
+          for(let i = endPoint*2; ;) {
+            winding2AvgX += points[i];
+            winding2AvgY += points[i + 1];
+            ++winding2Count;
+            if(i === startPoint*2) {
+              break;
+            }
+            const prevI = i;
+            i = (i + 2) % plen;
+            const dx = points[i    ] - points[prevI    ];
+            const dy = points[i + 1] - points[prevI + 1];
+            winding2PhysLength += Math.sqrt(dx*dx + dy*dy);
+          }
+          winding2AvgX /= winding2Count;
+          winding2AvgY /= winding2Count;
+          
+          const winding1dx = drawingAvgX - winding1AvgX;
+          const winding1dy = drawingAvgY - winding1AvgY;
+          const winding2dx = drawingAvgX - winding2AvgX;
+          const winding2dy = drawingAvgY - winding2AvgY;
+          if(
+            winding2dx*winding2dx + winding2dy*winding2dy
+            >
+            winding1dx*winding1dx + winding1dy*winding1dy
+          ) {
+            // winding 1 (startPoint..endPoint) is closer.
+            if(endPoint >= startPoint) {
+              points.splice(startPoint*2, endPoint*2 - startPoint*2 + 2);
+              for(let i = 0; i < dlen; i += 2) {
+                points.splice(startPoint*2 + i, 0, drawing[i], drawing[i + 1]);
+              }
+            } else {
+              points.length = startPoint*2;
+              points.splice(0, endPoint*2 + 2);
+              for(let i = 0; i < dlen; ++i) {
+                points.push(drawing[i]);
+              }
+            }
+          } else {
+            // winding 2 (endPoint..startPoint) is closer.
+            // reverse the drawing.
+            for(let i = 0; i < dlen >> 1; i += 2) {
+              const tx = drawing[i], ty = drawing[i + 1];
+              drawing[i    ] = drawing[dlen - i - 2];
+              drawing[i + 1] = drawing[dlen - i - 1];
+              drawing[dlen - i - 2] = tx;
+              drawing[dlen - i - 1] = ty;
+            }
+            if(startPoint >= endPoint) {
+              points.splice(endPoint*2, startPoint*2 - endPoint*2 + 2);
+              for(let i = 0; i < dlen; i += 2) {
+                points.splice(endPoint*2 + i, 0, drawing[i], drawing[i + 1]);
+              }
+            } else {
+              points.length = endPoint*2;
+              points.splice(0, startPoint*2 + 2);
+              for(let i = 0; i < dlen; ++i) {
+                points.push(drawing[i]);
+              }
+            }
+          }
+          
           return prev;
         }
       }
