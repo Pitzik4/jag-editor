@@ -133,6 +133,8 @@ export function mutate(prev, selectedPath, pathIndex, startPoint, startX, startY
   
   const drawing = [startPointX, startPointY];
   
+  let hasTraveled = false;
+  
   return {
     update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys) {
       if(pendingKeys.some(x => x === ' ' || x === 'Escape')) {
@@ -166,9 +168,10 @@ export function mutate(prev, selectedPath, pathIndex, startPoint, startX, startY
       
       if(Math.max(Math.abs(mouseX - prevX), Math.abs(mouseY - prevY)) >= 0.1) {
         let endPoint = -1;
-        if(Math.max(Math.abs(mouseX - startPointX), Math.abs(mouseY - startPointY)) >= 1) {
+        if(hasTraveled) {
           endPoint = getIntersection(prevX, prevY, mouseX, mouseY);
         }
+        hasTraveled = true;
         if(endPoint === -1) {
           drawing.push(mouseX, mouseY);
         } else {
