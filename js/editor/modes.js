@@ -387,6 +387,8 @@ export function drawAndAppend(prev, selectedPath) {
       }
     },
     render(ctx, scale) {
+      renderOutline(ctx, scale, selectedPath);
+      
       const lineWidth = 2 / scale;
       
       ctx.beginPath();
