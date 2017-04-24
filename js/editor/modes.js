@@ -519,12 +519,18 @@ export function seek(prev, applyFrame, currentFrame) {
 }
 
 export function manageKeyframes(prev, wholesaleKeyframes, cumulativeKeyframes, pins, selectedPaths) {
+  const selectionDict = [];
+  for(let i = 0; i < selectedPaths.length; ++i) {
+    selectionDict[selectedPaths[i].id] = true;
+  }
   const selection = Keyframe.getSelection(selectedPaths);
   const applicableWholesaleKeyframes = wholesaleKeyframes.filter(kf => kf.selection === selection);
   const applicableCumulativeKeyframes = cumulativeKeyframes.filter(kf => kf.selection === selection);
   const applicablePins = pins.filter(pin => pin.keyframe.selection === selection);
   
   let grabbedPin, pinOffsetX = 0, pinOffsetY = 0;
+  
+  const originalState = Keyframe.createWholesale(selectedPaths);
   
   return {
     update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys, shiftDown) {
@@ -558,6 +564,18 @@ export function manageKeyframes(prev, wholesaleKeyframes, cumulativeKeyframes, p
                 break;
               }
             }
+          }
+          if(grabbedPin) {
+            for(let i = 0; i < paths.length; ++i) {
+              if(selectionDict[paths[i].id]) {
+                Path.setToZero(paths[i]);
+              }
+            }
+            const keyframe = grabbedPin.keyframe;
+            if(keyframe.type === 'cumulative') {
+              Keyframe.applyWholesale(paths, originalState, 1);
+            }
+            Keyframe.applyWholesale(paths, keyframe, 1);
           }
           /*if(grabbedPin === undefined) {
             grabbedPin = Pin.create(mouseX, mouseY, applicableWholesaleKeyframes[0]);
