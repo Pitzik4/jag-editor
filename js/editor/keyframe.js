@@ -34,11 +34,17 @@ export function createWholesale(paths) {
 }
 
 export function createCumulative(paths, frame) {
-  // XXX
   const out = create();
   const myPaths = out.paths = paths.map(Path.clone);
   for(let i = 0; i < myPaths.length; ++i) {
-    out.pathDict[myPaths[i].id] = myPaths[i];
+    const id = myPaths[i].id;
+    out.pathDict[id] = myPaths[i];
+    for(let j = 0; j < frame.length; ++j) {
+      if(frame[j].id === id) {
+        Path.addAToB(frame[j], myPaths[i], -1);
+        break;
+      }
+    }
   }
   out.selection = getSelection(myPaths);
   out.type = 'cumulative';

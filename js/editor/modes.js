@@ -542,6 +542,11 @@ export function manageKeyframes(prev, wholesaleKeyframes, cumulativeKeyframes, p
             pinOffsetX = pinOffsetY = 0;
             applicablePins.push(grabbedPin);
             pins.push(grabbedPin);
+          } else if(mouseX >= -10 && mouseX < 0 && mouseY >= 0 && mouseY < applicableCumulativeKeyframes.length * 2) {
+            grabbedPin = Pin.create(mouseX, mouseY, applicableCumulativeKeyframes[mouseY >> 1]);
+            pinOffsetX = pinOffsetY = 0;
+            applicablePins.push(grabbedPin);
+            pins.push(grabbedPin);
           } else {
             for(let i = applicablePins.length - 1; i >= 0; --i) {
               const pin = applicablePins[i];
@@ -573,6 +578,7 @@ export function manageKeyframes(prev, wholesaleKeyframes, cumulativeKeyframes, p
       }
     },
     render(ctx, scale) {
+      renderKeyframes(ctx, scale, applicableCumulativeKeyframes, -10);
       renderKeyframes(ctx, scale, applicableWholesaleKeyframes, 80);
       renderPins(ctx, scale, applicablePins);
     },
