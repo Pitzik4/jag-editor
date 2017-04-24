@@ -18,6 +18,9 @@ for(let i = 0; i < 1800*2; ++i) {
 }
 //paths[0].subpaths[0] = [15, 55, 65, 55, 40, 5];
 let mode = Modes.normal();
+let isLatticeEnabled = false;
+
+const frameWidth = 80, frameHeight = 60;
 
 function frame(time) {
   requestAnimationFrame(frame);
@@ -38,6 +41,13 @@ function frame(time) {
   const mouseClicked = screenMouseClicked;
   screenMouseClicked = false;
   
+  for(let i = pendingKeys.length - 1; i >= 0; --i) {
+    if(pendingKeys[i].toLowerCase() === 'l') {
+      pendingKeys.splice(i, 1);
+      isLatticeEnabled = !isLatticeEnabled;
+    }
+  }
+  
   do {
     let newMode = mode.update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys);
     if(newMode) {
@@ -49,7 +59,7 @@ function frame(time) {
   
   // render logic
   
-  renderer.beginFrame(80, 60);
+  renderer.beginFrame(frameWidth, frameHeight);
   renderer.fillPolygon(rectangle, 0, 0, 0);
   for(let i = 0, len = paths.length; i < len; ++i) {
     renderer.fillPolygon(paths[i].subpaths, paths[i].color.r, paths[i].color.g, paths[i].color.b, paths[i].x, paths[i].y);
@@ -64,6 +74,25 @@ function frame(time) {
   ctx.imageSmoothingEnabled = false;
   ctx.setTransform(scale, 0, 0, scale, (canvas.width - pixels.width * scale) * 0.5, 0);
   ctx.drawImage(pixels, 0, 0);
+  
+  if(isLatticeEnabled) {
+    ctx.beginPath();
+    ctx.moveTo(-200, -200);
+    ctx.lineTo(frameWidth + 200, -200);
+    ctx.lineTo(frameWidth + 200, frameHeight + 200);
+    ctx.lineTo(-200, frameHeight + 200);
+    ctx.lineTo(-200, -200);
+    for(let y = 0.5; y < frameHeight; ++y) {
+      for(let x = 0.5; x < frameWidth; ++x) {
+        ctx.moveTo(x + 0.175, y);
+        ctx.arc(x, y, 0.175, 0, Math.PI * 2, true);
+      }
+    }
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.075)';
+    ctx.lineWidth = 1 / scale;
+    ctx.stroke();
+  }
   
   mode.render(ctx, scale);
 }
