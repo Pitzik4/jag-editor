@@ -17,14 +17,12 @@ for(let i = 0; i < 1800*2; ++i) {
   paths[0].subpaths[0].push(Math.cos(i * Math.PI / 1800) * 30 + 40, Math.sin(i * Math.PI / 1800) * 30 + 30);
 }
 //paths[0].subpaths[0] = [15, 55, 65, 55, 40, 5];
-let mode = Modes.normal();
+let mode = Modes.normal(paths);
 let isLatticeEnabled = false;
 
 const frameWidth = 80, frameHeight = 60;
 
 function frame(time) {
-  requestAnimationFrame(frame);
-  
   // scaling
   
   if(canvas.width !== window.innerWidth) canvas.width = window.innerWidth;
@@ -97,6 +95,8 @@ function frame(time) {
   }
   
   mode.render(ctx, scale);
+  
+  requestAnimationFrame(frame);
 }
 
 requestAnimationFrame(frame);

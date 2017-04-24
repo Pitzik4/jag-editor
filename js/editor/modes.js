@@ -1,7 +1,26 @@
 import * as Path from './path.js';
+import * as Keyframe from './keyframe.js';
+import * as Pin from './pin.js';
 
-export function normal(selectedPaths) {
+export function normal(paths, selectedPaths) {
   selectedPaths = selectedPaths || [];
+  const frames = [paths.map(Path.clone)];
+  const cumulativeKeyframes = [], wholesaleKeyframes = [], pins = [];
+  let currentFrame = 0;
+  
+  function getFrame(frameN) {
+    if(frameN < 0) frameN = 0;
+    else if(frameN >= frames.length) frameN = frames.length - 1;
+    return frames[frameN];
+  }
+  
+  function applyFrame(paths, frameN) {
+    currentFrame = frameN;
+    const frame = getFrame(frameN);
+    for(let i = 0; i < paths.length; ++i) {
+      Path.copyAToB(frame[i], paths[i]);
+    }
+  }
   
   return {
     update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys, shiftDown) {
@@ -26,17 +45,18 @@ export function normal(selectedPaths) {
         }
       }
       
+      const selectionOrEverything = selectedPaths.length ? selectedPaths : paths;
       while(pendingKeys.length) {
         const key = pendingKeys.pop().toLowerCase();
-        if(key === 'g') { /////////// (G)rab
+        if(key === 'g') { //////////////// (G)rab
           if(selectedPaths.length) {
             return grab(this, selectedPaths, mouseX, mouseY);
           }
-        } else if(key === 'm') { //// (M)utate
+        } else if(key === 'm') { ///////// (M)utate
           if(selectedPaths.length) {
             return mutateStart(this, selectedPaths);
           }
-        } else if(key === 'a') { //// (A)ppend
+        } else if(key === 'a') { ///////// (A)ppend
           if(!selectedPaths.length) {
             const path = Path.create();
             selectedPaths.push(path);
@@ -46,16 +66,46 @@ export function normal(selectedPaths) {
               g: (Math.random() * 256) & 255,
               b: (Math.random() * 256) & 255,
             };
+            for(let frameN = 0; frameN < frames.length; ++frameN) {
+              frames[frameN].push(Path.clone(path));
+            }
           }
-          return drawAndAppend(this, selectedPaths[selectedPaths.length - 1]);
-        } else if(key === 'delete') {
+          const selectedPath = selectedPaths[selectedPaths.length - 1];
+          const selectedPathIndex = paths.indexOf(selectedPath);
+          return drawAndAppend(this, selectedPath, points => {
+            selectedPath.subpaths.push(points);
+            for(let frameN = 0; frameN < frames.length; ++frameN) {
+              frames[frameN][selectedPathIndex].subpaths.push(points.slice(0));
+            }
+          });
+        } else if(key === 'delete') { //// (Delete) Selected Shapes
           while(selectedPaths.length) {
             const selectedPath = selectedPaths.pop();
             const index = paths.indexOf(selectedPath);
             if(index !== -1) {
               paths.splice(index, 1);
+              for(let frameN = 0; frameN < frames.length; ++frameN) {
+                frames[frameN].splice(index, 1);
+              }
             }
           }
+        } else if(key === 'p') { ///////// (P)lay
+          
+        } else if(key === 's') { ///////// (S)crub Timeline / (S)eek
+          applyFrame(paths, currentFrame);
+          return seek(this, applyFrame, currentFrame);
+        } else if(key === 'r') { ///////// (R)ecord
+          
+        } else if(key === 'q') { ///////// Save (Q)mulative Keyframe
+          cumulativeKeyframes.push(Keyframe.createCumulative(selectionOrEverything, getFrame(currentFrame)));
+        } else if(key === 'w') { ///////// Save (W)holesale Keyframe
+          wholesaleKeyframes.push(Keyframe.createWholesale(selectionOrEverything));
+        } else if(key === 'k') { ///////// Manage (K)eyframes
+          return manageKeyframes(this, wholesaleKeyframes, cumulativeKeyframes, pins, selectionOrEverything);
+        } else if(key === ' ') { ///////// Flatten Timeline
+          frames.length = 0;
+          frames[0] = paths.map(Path.clone);
+          currentFrame = 0;
         }
       }
     },
@@ -169,6 +219,8 @@ export function mutate(prev, selectedPath, pathIndex, startPoint, startX, startY
   
   const drawing = [startPointX, startPointY];
   
+  let hasTraveled = false;
+  
   return {
     update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys, shiftDown) {
       if(pendingKeys.some(x => x === ' ' || x === 'Escape')) {
@@ -202,9 +254,10 @@ export function mutate(prev, selectedPath, pathIndex, startPoint, startX, startY
       
       if(Math.max(Math.abs(mouseX - prevX), Math.abs(mouseY - prevY)) >= 0.1) {
         let endPoint = -1;
-        if(!mouseDown) {
+        if(hasTraveled && !mouseDown) {
           endPoint = getIntersection(prevX, prevY, mouseX, mouseY);
         }
+        hasTraveled = true;
         if(endPoint === -1) {
           drawing.push(mouseX, mouseY);
         } else {
@@ -345,7 +398,7 @@ export function mutate(prev, selectedPath, pathIndex, startPoint, startX, startY
   };
 }
 
-export function drawAndAppend(prev, selectedPath) {
+export function drawAndAppend(prev, selectedPath, callback) {
   const drawing = [];
   let amDrawing = false;
   
@@ -408,7 +461,7 @@ export function drawAndAppend(prev, selectedPath) {
           debt += length;
         }
         
-        selectedPath.subpaths.push(points);
+        callback(points);
         
         return prev;
       }
@@ -430,6 +483,79 @@ export function drawAndAppend(prev, selectedPath) {
       ctx.strokeStyle = 'white';
       ctx.lineWidth = lineWidth * 1;
       ctx.stroke();
+    },
+  };
+}
+
+export function seek(prev, applyFrame, currentFrame) {
+  return {
+    update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys, shiftDown) {
+      while(pendingKeys.length) {
+        const key = pendingKeys.pop().toLowerCase();
+        if(key === 'escape' || key === ' ' || key === 's') {
+          return prev;
+        } else if(key === 'arrowright' || key === 'd') {
+          applyFrame(paths, ++currentFrame);
+        } else if(key === 'arrowleft' || key === 'a') {
+          applyFrame(paths, --currentFrame);
+        }
+      }
+    },
+    render(ctx, scale) {
+      
+    },
+  };
+}
+
+export function manageKeyframes(prev, wholesaleKeyframes, cumulativeKeyframes, pins, selectedPaths) {
+  const selection = Keyframe.getSelection(selectedPaths);
+  const applicableWholesaleKeyframes = wholesaleKeyframes.filter(kf => kf.selection === selection);
+  const applicableCumulativeKeyframes = cumulativeKeyframes.filter(kf => kf.selection === selection);
+  const applicablePins = pins.filter(pin => pin.keyframe.selection === selection);
+  
+  let grabbedPin, pinOffsetX = 0, pinOffsetY = 0;
+  
+  return {
+    update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys, shiftDown) {
+      if(pendingKeys.some(x => x === ' ' || x === 'Escape' || x === 'k')) {
+        return prev;
+      }
+      
+      if(mouseDown) {
+        if(grabbedPin) {
+          grabbedPin.x = mouseX + pinOffsetX;
+          grabbedPin.y = mouseY + pinOffsetY;
+        } else {
+          for(let i = applicablePins.length - 1; i >= 0; --i) {
+            const pin = applicablePins[i];
+            const dx = pin.x - mouseX, dy = pin.y - mouseY;
+            if(dx*dx + dy*dy <= pinRadius*pinRadius) {
+              grabbedPin = pin;
+              pinOffsetX = dx;
+              pinOffsetY = dy;
+              break;
+            }
+          }
+          if(grabbedPin === undefined) {
+            grabbedPin = Pin.create(mouseX, mouseY, applicableWholesaleKeyframes[0]);
+            pinOffsetX = pinOffsetY = 0;
+            applicablePins.push(grabbedPin);
+            pins.push(grabbedPin);
+          }
+        }
+      } else if(grabbedPin) {
+        if(grabbedPin.x < 0 || grabbedPin.x >= 80) {
+          // delete the pin
+          const pinsIndex = pins.indexOf(grabbedPin);
+          pins.splice(pinsIndex, 1);
+          const applicablePinsIndex = applicablePins.indexOf(grabbedPin);
+          applicablePins.splice(applicablePinsIndex, 1);
+        }
+        grabbedPin = undefined;
+      }
+    },
+    render(ctx, scale) {
+      renderPins(ctx, scale, applicablePins);
     },
   };
 }
@@ -509,6 +635,26 @@ function renderOutline(ctx, scale, path, selectedSubpath, selectionStart, select
       const curX = getX(selectedSubpath, i), curY = getY(selectedSubpath, i);
       ctx.lineTo(curX, curY);
     }
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = lineWidth * 2;
+    ctx.stroke();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = lineWidth * 1;
+    ctx.stroke();
+  }
+}
+
+const pinRadius = 1;
+function renderPins(ctx, scale, pins) {
+  const lineWidth = 2 / scale;
+  
+  for(let i = 0; i < pins.length; ++i) {
+    const pin = pins[i];
+    ctx.beginPath();
+    ctx.moveTo(pin.x + pinRadius, pin.y);
+    ctx.arc(pin.x, pin.y, pinRadius, 0, Math.PI * 2, true);
+    ctx.fillStyle = pin.keyframe.cssColor;
+    ctx.fill();
     ctx.strokeStyle = 'black';
     ctx.lineWidth = lineWidth * 2;
     ctx.stroke();
