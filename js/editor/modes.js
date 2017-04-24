@@ -1,15 +1,26 @@
 import * as Path from './path.js';
 
-export function normal(selectedPath) {
-  let selectedSubpath = -1, selectionStart = 0, selectionEnd = 0;
+export function normal(selectedPaths) {
+  selectedPaths = selectedPaths || [];
   
   return {
-    update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys) {
+    update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys, shiftDown) {
       if(mouseClicked) {
-        selectedPath = undefined;
+        if(!shiftDown) {
+          selectedPaths.length = 0;
+        }
         for(let i = paths.length - 1; i >= 0; --i) {
           if(renderer.containsPoint(paths[i].subpaths, mouseX, mouseY, paths[i].x, paths[i].y)) {
-            selectedPath = paths[i];
+            if(shiftDown) {
+              const index = selectedPaths.indexOf(paths[i]);
+              if(index === -1) {
+                selectedPaths.push(paths[i]);
+              } else {
+                selectedPaths.splice(index, 1);
+              }
+            } else {
+              selectedPaths.push(paths[i]);
+            }
             break;
           }
         }
@@ -18,99 +29,112 @@ export function normal(selectedPath) {
       while(pendingKeys.length) {
         const key = pendingKeys.pop().toLowerCase();
         if(key === 'g') { /////////// (G)rab
-          if(selectedPath) {
-            return grab(this, selectedPath, mouseX, mouseY);
+          if(selectedPaths.length) {
+            return grab(this, selectedPaths, mouseX, mouseY);
           }
         } else if(key === 'm') { //// (M)utate
-          if(selectedPath) {
-            return mutateStart(this, selectedPath);
+          if(selectedPaths.length) {
+            return mutateStart(this, selectedPaths);
           }
         } else if(key === 'a') { //// (A)ppend
-          if(!selectedPath) {
-            selectedPath = Path.create();
-            paths.push(selectedPath);
-            selectedPath.color = {
+          if(!selectedPaths.length) {
+            const path = Path.create();
+            selectedPaths.push(path);
+            paths.push(path);
+            path.color = {
               r: (Math.random() * 256) & 255,
               g: (Math.random() * 256) & 255,
               b: (Math.random() * 256) & 255,
             };
           }
-          return drawAndAppend(this, selectedPath);
+          return drawAndAppend(this, selectedPaths[selectedPaths.length - 1]);
         } else if(key === 'delete') {
-          const index = paths.indexOf(selectedPath);
-          if(index !== -1) {
-            paths.splice(index, 1);
+          while(selectedPaths.length) {
+            const selectedPath = selectedPaths.pop();
+            const index = paths.indexOf(selectedPath);
+            if(index !== -1) {
+              paths.splice(index, 1);
+            }
           }
-          selectedPath = undefined;
         }
       }
     },
     render(ctx, scale) {
-      if(selectedPath) {
-        renderOutline(ctx, scale, selectedPath, selectedSubpath, selectionStart, selectionEnd);
+      for(let i = 0; i < selectedPaths.length; ++i) {
+        renderOutline(ctx, scale, selectedPaths[i]);
       }
     },
   };
 }
 
-export function grab(prev, selectedPath, startX, startY) {
-  const originalX = selectedPath.x, originalY = selectedPath.y;
-  const offsX = originalX - startX, offsY = originalY - startY;
+export function grab(prev, selectedPaths, startX, startY) {
+  const originalPositions = selectedPaths.map(({ x, y }) => ({ x, y }));
+  const offsets = originalPositions.map(({ x, y }) => ({ x: x - startX, y: y - startY }));
   
   return {
-    update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys) {
+    update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys, shiftDown) {
       if(mouseClicked || pendingKeys.some(x => x.toLowerCase() === 'g')) {
         return prev;
       }
       
       if(pendingKeys.some(x => x === ' ' || x === 'Escape')) {
-        selectedPath.x = originalX;
-        selectedPath.y = originalY;
+        for(let i = 0; i < selectedPaths.length; ++i) {
+          selectedPaths[i].x = originalPositions[i].x;
+          selectedPaths[i].y = originalPositions[i].y;
+        }
         return prev;
       }
       
-      selectedPath.x = mouseX + offsX;
-      selectedPath.y = mouseY + offsY;
+      for(let i = 0; i < selectedPaths.length; ++i) {
+        selectedPaths[i].x = mouseX + offsets[i].x;
+        selectedPaths[i].y = mouseY + offsets[i].y;
+      }
     },
     render(ctx, scale) {  },
   };
 }
 
-export function mutateStart(prev, selectedPath) {
-  let nearestSubpath = 0, nearestPoint = 0;
+export function mutateStart(prev, selectedPaths) {
+  let nearestPath = selectedPaths[0], nearestSubpath = 0, nearestPoint = 0;
   
   return {
-    update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys) {
+    update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys, shiftDown) {
       if(pendingKeys.some(x => x === ' ' || x === 'Escape')) {
         return prev;
       }
       
-      const offsX = selectedPath.x |0, offsY = selectedPath.y |0;
       let nearestDistanceSquared = Infinity;
-      for(let pathIndex = 0; pathIndex < selectedPath.subpaths.length; ++pathIndex) {
-        const points = selectedPath.subpaths[pathIndex], plen = points.length |0;
-        for(let i = 0; i < plen; i += 2) {
-          const x = points[i] + offsX, y = points[i+1] + offsY;
-          const dx = x - mouseX, dy = y - mouseY;
-          const distanceSquared = dx*dx + dy*dy;
-          if(distanceSquared < nearestDistanceSquared) {
-            nearestSubpath = pathIndex;
-            nearestPoint = i >> 1;
-            nearestDistanceSquared = distanceSquared;
+      for(let selectedPathIndex = 0; selectedPathIndex < selectedPaths.length; ++selectedPathIndex) {
+        const selectedPath = selectedPaths[selectedPathIndex];
+        const offsX = selectedPath.x |0, offsY = selectedPath.y |0;
+        for(let pathIndex = 0; pathIndex < selectedPath.subpaths.length; ++pathIndex) {
+          const points = selectedPath.subpaths[pathIndex], plen = points.length |0;
+          for(let i = 0; i < plen; i += 2) {
+            const x = points[i] + offsX, y = points[i+1] + offsY;
+            const dx = x - mouseX, dy = y - mouseY;
+            const distanceSquared = dx*dx + dy*dy;
+            if(distanceSquared < nearestDistanceSquared) {
+              nearestPath = selectedPath;
+              nearestSubpath = pathIndex;
+              nearestPoint = i >> 1;
+              nearestDistanceSquared = distanceSquared;
+            }
           }
         }
       }
       
       if(mouseDown) {
-        return mutate(prev, selectedPath, nearestSubpath, nearestPoint, mouseX, mouseY);
+        return mutate(prev, nearestPath, nearestSubpath, nearestPoint, mouseX, mouseY);
       }
     },
     render(ctx, scale) {
-      renderOutline(ctx, scale, selectedPath);
+      for(let i = 0; i < selectedPaths.length; ++i) {
+        renderOutline(ctx, scale, selectedPaths[i]);
+      }
       
-      const offsX = selectedPath.x |0, offsY = selectedPath.y |0;
+      const offsX = nearestPath.x |0, offsY = nearestPath.y |0;
       const lineWidth = 2 / scale;
-      const nx = selectedPath.subpaths[nearestSubpath][nearestPoint*2] + offsX, ny = selectedPath.subpaths[nearestSubpath][nearestPoint*2+1] + offsY;
+      const nx = nearestPath.subpaths[nearestSubpath][nearestPoint*2] + offsX, ny = nearestPath.subpaths[nearestSubpath][nearestPoint*2+1] + offsY;
       ctx.beginPath();
       ctx.moveTo(nx - lineWidth*2, ny - lineWidth*2);
       ctx.lineTo(nx + lineWidth*2, ny - lineWidth*2);
@@ -140,7 +164,7 @@ export function mutate(prev, selectedPath, pathIndex, startPoint, startX, startY
   const drawing = [startPointX, startPointY];
   
   return {
-    update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys) {
+    update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys, shiftDown) {
       if(pendingKeys.some(x => x === ' ' || x === 'Escape')) {
         return prev;
       }
@@ -323,7 +347,7 @@ export function drawAndAppend(prev, selectedPath) {
   const pathY = selectedPath.y |0;
   
   return {
-    update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys) {
+    update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys, shiftDown) {
       mouseX -= pathX;
       mouseY -= pathY;
       
@@ -408,7 +432,7 @@ export function addHook(subordinate, key, action) {
   key = key.toLowerCase();
   
   return {
-    update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys) {
+    update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys, shiftDown) {
       for(let i = pendingKeys.length - 1; i >= 0; --i) {
         if(pendingKeys[i].toLowerCase() === key) {
           pendingKeys.splice(i, 1);
@@ -418,7 +442,7 @@ export function addHook(subordinate, key, action) {
         }
       }
       
-      return subordinate.update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys);
+      return subordinate.update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys, shiftDown);
     },
     render(ctx, scale) {
       subordinate.render(ctx, scale);

@@ -38,7 +38,8 @@ function frame(time) {
   const mouseX = (screenMouseX - (canvas.width - pixels.width * scale) * 0.5) / scale;
   const mouseY = screenMouseY / scale;
   const mouseDown = screenMouseDown;
-  const mouseClicked = screenMouseClicked;
+  let mouseClicked = screenMouseClicked;
+  const shiftDown = screenShiftDown;
   screenMouseClicked = false;
   
   for(let i = pendingKeys.length - 1; i >= 0; --i) {
@@ -49,11 +50,12 @@ function frame(time) {
   }
   
   do {
-    let newMode = mode.update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys);
+    let newMode = mode.update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys, shiftDown);
     if(newMode) {
       mode = newMode;
     }
     pendingKeys.length = 0;
+    mouseClicked = false;
   } while(newMode);
   
   
@@ -99,7 +101,7 @@ function frame(time) {
 
 requestAnimationFrame(frame);
 
-let screenMouseX = 0, screenMouseY = 0, screenMouseDown = false, screenMouseClicked = false;
+let screenMouseX = 0, screenMouseY = 0, screenMouseDown = false, screenMouseClicked = false, screenShiftDown = false;
 
 window.addEventListener('mousemove', ev => {
   screenMouseX = ev.clientX;
@@ -119,4 +121,13 @@ const pendingKeys = [];
 
 window.addEventListener('keydown', ev => {
   pendingKeys.push(ev.key);
+  if(ev.key === 'Shift') {
+    screenShiftDown = true;
+  }
+});
+
+window.addEventListener('keyup', ev => {
+  if(ev.key === 'Shift') {
+    screenShiftDown = false;
+  }
 });
