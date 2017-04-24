@@ -68,11 +68,17 @@ export function normal(selectedPaths) {
 }
 
 export function grab(prev, selectedPaths, startX, startY) {
+  startX |= 0;
+  startY |= 0;
+  
   const originalPositions = selectedPaths.map(({ x, y }) => ({ x, y }));
   const offsets = originalPositions.map(({ x, y }) => ({ x: x - startX, y: y - startY }));
   
   return {
     update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys, shiftDown) {
+      mouseX |= 0;
+      mouseY |= 0;
+      
       if(mouseClicked || pendingKeys.some(x => x.toLowerCase() === 'g')) {
         return prev;
       }
