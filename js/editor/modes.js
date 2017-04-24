@@ -22,6 +22,8 @@ export function normal(paths, selectedPaths) {
     }
   }
   
+  let keyframeDisplayLimit = -Infinity;
+  
   return {
     update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys, shiftDown) {
       if(mouseClicked) {
@@ -98,20 +100,29 @@ export function normal(paths, selectedPaths) {
           
         } else if(key === 'q') { ///////// Save (Q)mulative Keyframe
           cumulativeKeyframes.push(Keyframe.createCumulative(selectionOrEverything, getFrame(currentFrame)));
+          keyframeDisplayLimit = Date.now() + 1000;
         } else if(key === 'w') { ///////// Save (W)holesale Keyframe
           wholesaleKeyframes.push(Keyframe.createWholesale(selectionOrEverything));
+          keyframeDisplayLimit = Date.now() + 1000;
         } else if(key === 'k') { ///////// Manage (K)eyframes
           return manageKeyframes(this, wholesaleKeyframes, cumulativeKeyframes, pins, selectionOrEverything);
         } else if(key === ' ') { ///////// Flatten Timeline
           frames.length = 0;
           frames[0] = paths.map(Path.clone);
           currentFrame = 0;
+        } else if(key === 't') { ///////// (T)est Pins
+          return testPins(this, pins, selectionOrEverything);
         }
       }
     },
     render(ctx, scale) {
       for(let i = 0; i < selectedPaths.length; ++i) {
         renderOutline(ctx, scale, selectedPaths[i]);
+      }
+      
+      if(Date.now() < keyframeDisplayLimit) {
+        renderKeyframes(ctx, scale, cumulativeKeyframes, -10);
+        renderKeyframes(ctx, scale, wholesaleKeyframes, 80);
       }
     },
   };
@@ -526,22 +537,29 @@ export function manageKeyframes(prev, wholesaleKeyframes, cumulativeKeyframes, p
           grabbedPin.x = mouseX + pinOffsetX;
           grabbedPin.y = mouseY + pinOffsetY;
         } else {
-          for(let i = applicablePins.length - 1; i >= 0; --i) {
-            const pin = applicablePins[i];
-            const dx = pin.x - mouseX, dy = pin.y - mouseY;
-            if(dx*dx + dy*dy <= pinRadius*pinRadius) {
-              grabbedPin = pin;
-              pinOffsetX = dx;
-              pinOffsetY = dy;
-              break;
+          if(mouseX >= 80 && mouseX < 90 && mouseY >= 0 && mouseY < applicableWholesaleKeyframes.length * 2) {
+            grabbedPin = Pin.create(mouseX, mouseY, applicableWholesaleKeyframes[mouseY >> 1]);
+            pinOffsetX = pinOffsetY = 0;
+            applicablePins.push(grabbedPin);
+            pins.push(grabbedPin);
+          } else {
+            for(let i = applicablePins.length - 1; i >= 0; --i) {
+              const pin = applicablePins[i];
+              const dx = pin.x - mouseX, dy = pin.y - mouseY;
+              if(dx*dx + dy*dy <= pinRadius*pinRadius) {
+                grabbedPin = pin;
+                pinOffsetX = dx;
+                pinOffsetY = dy;
+                break;
+              }
             }
           }
-          if(grabbedPin === undefined) {
+          /*if(grabbedPin === undefined) {
             grabbedPin = Pin.create(mouseX, mouseY, applicableWholesaleKeyframes[0]);
             pinOffsetX = pinOffsetY = 0;
             applicablePins.push(grabbedPin);
             pins.push(grabbedPin);
-          }
+          }*/
         }
       } else if(grabbedPin) {
         if(grabbedPin.x < 0 || grabbedPin.x >= 80) {
@@ -552,6 +570,65 @@ export function manageKeyframes(prev, wholesaleKeyframes, cumulativeKeyframes, p
           applicablePins.splice(applicablePinsIndex, 1);
         }
         grabbedPin = undefined;
+      }
+    },
+    render(ctx, scale) {
+      renderKeyframes(ctx, scale, applicableWholesaleKeyframes, 80);
+      renderPins(ctx, scale, applicablePins);
+    },
+  };
+}
+
+export function testPins(prev, pins, selectedPaths) {
+  const selectionDict = [];
+  for(let i = 0; i < selectedPaths.length; ++i) {
+    selectionDict[selectedPaths[i].id] = true;
+  }
+  const selection = Keyframe.getSelection(selectedPaths);
+  const applicablePins = pins.filter(pin => pin.keyframe.selection === selection);
+  const weights = [];
+  for(let i = 0; i < applicablePins.length; ++i) {
+    weights.push(0.5);
+  }
+  const originalState = Keyframe.createWholesale(selectedPaths);
+  
+  return {
+    update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys, shiftDown) {
+      if(pendingKeys.some(x => x === ' ' || x === 'Escape' || x === 't')) {
+        return prev;
+      }
+      
+      let totalWeight = 0;
+      for(let i = 0; i < applicablePins.length; ++i) {
+        const pin = applicablePins[i];
+        const dx = pin.x - mouseX, dy = pin.y - mouseY;
+        totalWeight += (weights[i] = 1 / Math.sqrt(dx*dx + dy*dy));
+      }
+      
+      for(let i = 0; i < paths.length; ++i) {
+        if(selectionDict[paths[i].id]) {
+          Path.setToZero(paths[i]);
+        }
+      }
+      
+      if(totalWeight === totalWeight && totalWeight !== Infinity && totalWeight !== -Infinity) {
+        for(let i = 0; i < applicablePins.length; ++i) {
+          const keyframe = applicablePins[i].keyframe;
+          if(keyframe.type === 'cumulative') {
+            Keyframe.applyWholesale(paths, originalState, weights[i] / totalWeight);
+          }
+          Keyframe.applyWholesale(paths, keyframe, weights[i] / totalWeight);
+        }
+      } else {
+        for(let i = 0; i < applicablePins.length; ++i) {
+          if(weights[i] !== weights[i] || weights[i] === Infinity || weights[i] === -Infinity) {
+            const keyframe = applicablePins[i].keyframe;
+            if(keyframe.type === 'cumulative') {
+              Keyframe.applyWholesale(paths, originalState, 1);
+            }
+            Keyframe.applyWholesale(paths, keyframe, 1);
+          }
+        }
       }
     },
     render(ctx, scale) {
@@ -641,6 +718,19 @@ function renderOutline(ctx, scale, path, selectedSubpath, selectionStart, select
     ctx.strokeStyle = 'white';
     ctx.lineWidth = lineWidth * 1;
     ctx.stroke();
+  }
+}
+
+function renderKeyframes(ctx, scale, keyframes, x) {
+  for(let i = 0; i < keyframes.length; ++i) {
+    ctx.fillStyle = keyframes[i].cssColor;
+    ctx.beginPath();
+    ctx.moveTo(x, i * 2);
+    ctx.lineTo(x + 10, i * 2);
+    ctx.lineTo(x + 10, i * 2 + 1.9);
+    ctx.lineTo(x, i * 2 + 1.9);
+    ctx.lineTo(x, i * 2);
+    ctx.fill();
   }
 }
 
