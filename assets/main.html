@@ -3,10 +3,28 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-    <title>Pitzik4 &ndash; Ludum Dare 38</title>
+    <title>Jag Editor</title>
     <style type="text/css">
       /* <![CDATA[ */
-      html, body {
+      body {
+        margin: 0;
+        padding: 0;
+        text-align: center;
+      }
+      #manual {
+        margin: 0;
+        padding: 1em;
+        display: inline-block;
+        width: 100%;
+        max-width: 50em;
+        text-align: left;
+        line-height: 1.6;
+      }
+      .center {
+        text-align: center;
+      }
+      
+      html.started, .started body {
         overflow: hidden;
         margin: 0;
         padding: 0;
@@ -14,6 +32,10 @@
       }
       
       #game {
+        display: none;
+      }
+      .started #game {
+        display: block;
         position: absolute;
         left: 0;
         top: 0;
@@ -25,9 +47,44 @@
       }
       /* ]]> */
     </style>
+    <script type="text/javascript" src="main.js"></script>
   </head>
   <body>
     <canvas id="game" moz-opaque></canvas>
-    <script type="text/javascript" src="main.js"></script>
+    <div id="manual">
+      <p>This is a brief, thrown-together introduction to the Jag Editor. The Jag Editor is a proof-of-concept vector-based sprite editor made by Pitzik4 for the 38th triannual <a href="https://ldjam.com/">Ludum Dare game jam</a>. The theme was "A Small World". With a resolution of 80 by 60 pixels, I like to think the editor fits that theme, but since it clearly isn't actually a game, I intend to opt out of all judging categories.</p>
+      <p>The control scheme is simple at its core, inspired in part by Blender. Press keys to change modes and to perform actions within those modes. Blender users should note that right-clicking doesn't cancel an action in the Jag Editor. Instead, press escape or the spacebar to return to the default mode. Your changes will in most cases be committed anyway, and there's no undo stack. Ain't nobody got time for that.</p>
+      <p>The timeline and the workspace are separate. The timeline in principle extends infinitely in both directions. Changes in the workspace won't automatically be reflected in the timeline; the only ways to modify the timeline are through the Record mode (more on that later) and by pressing the spacebar while in the Default mode, which will erase the entire timeline, replacing it with the contents of the workspace. Even though the workspace doesn't technically correspond to any frame in the timeline, there is always an invisible "current frame" which some operations function relative to, and which can be adjusted using Seek mode, Play mode, and Record mode.</p>
+      <h3>Default mode</h3>
+      <p>Click on a shape to select it. Shift-click to add or remove shapes from the selection. Press + or - (or = or _) to increase or decrease the framerate. Press W to save a new "wholesale" keyframe; press Q to save a new "cumulative" ("Q"-mulative) keyframe relative to the current frame in the timeline. Press the spacebar to erase the timeline and replace it with the contents of the workspace. Press the delete key to delete the selected shapes. Press other keys to enter other modes.</p>
+      <h3>Grab mode (press G)</h3>
+      <p>Move the selected objects. Click to place them down and return to Default mode.</p>
+      <h3>Mutate mode (press M)</h3>
+      <p>Change the shape of the selected objects. This mode works in a weird way which I don't have time to document. You'll have to figure it out yourself. Sorry.</p>
+      <h3>Append mode (press A)</h3>
+      <p>Add a new subpath (e.g. a hole) to the last selected object, or create a new object if none are selected. Just draw a shape with the mouse.</p>
+      <h3>Play mode (press P)</h3>
+      <p>Advances down the timeline at the currently selected framerate.</p>
+      <h3>Seek mode (press S)</h3>
+      <p>Press the left arrow to move one frame back, the right arrow to move one frame forward.</p>
+      <h3>Pins mode (press K)</h3>
+      <p>Move keyframe pins, or drag new keyframe pins from the keyframes on the left and right sides of the screen. Cumulative keyframes are on the left, wholesale on the right. Drag a pin offscreen to delete it.</p>
+      <h3>Pin Testing mode (press T)</h3>
+      <p>The workspace will interpolate between keyframes based on how close your mouse is to the corresponding pins. Cool, huh?</p>
+      <h3>Record mode (press T)</h3>
+      <p>Like Pin Testing mode and Play mode at the same time. Move the mouse around like a puppeteer and make an animation. Press escape to stop recording.</p>
+      <div class="center"><button onclick="start();">Open Editor</button><div>
+    </div>
+    <script type="text/javascript">
+      // <![CDATA[
+      var button = document.getElementsByTagName('button')[0];
+      button.addEventListener('click', function() {
+        var manual = document.getElementById('manual');
+        document.body.removeChild(manual);
+        document.documentElement.setAttribute('class', 'started');
+        begin();
+      });
+      // ]]>
+    </script>
   </body>
 </html>

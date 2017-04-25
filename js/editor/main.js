@@ -3,6 +3,8 @@ import * as Path from './path.js';
 import * as Modes from './modes.js';
 import { requestAnimationFrame } from '../shims.js';
 
+window.begin = function() {
+
 const pixels = document.createElement('canvas');
 const renderer = Renderer.create(pixels);
 
@@ -131,3 +133,5 @@ window.addEventListener('keyup', ev => {
     screenShiftDown = false;
   }
 });
+
+};

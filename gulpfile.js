@@ -14,7 +14,7 @@ gulp.task('js', function() {
     .pipe(buffer())
     .pipe(buble())
     .pipe(iife())
-    //.pipe(uglify({ ie_proof: false }))
+    .pipe(uglify({ ie_proof: false }))
     .pipe(gulp.dest('./build'));
 });
 
@@ -24,7 +24,7 @@ gulp.task('editor-js', function() {
     .pipe(buffer())
     .pipe(buble())
     .pipe(iife())
-    //.pipe(uglify({ ie_proof: false }))
+    .pipe(uglify({ ie_proof: false }))
     .pipe(gulp.dest('./build'));
 });
 
