@@ -5,10 +5,12 @@ import * as Pin from './pin.js';
 export function normal(paths, selectedPaths) {
   selectedPaths = selectedPaths || [];
   const frames = [paths.map(Path.clone)];
+  let frameShift = 0;
   const cumulativeKeyframes = [], wholesaleKeyframes = [], pins = [];
   let currentFrame = 0, framerate = 20, blinkingStartTime = Date.now();
   
   function getFrame(frameN) {
+    frameN += frameShift;
     if(frameN < 0) frameN = 0;
     else if(frameN >= frames.length) frameN = frames.length - 1;
     return frames[frameN];
@@ -20,6 +22,16 @@ export function normal(paths, selectedPaths) {
     for(let i = 0; i < paths.length; ++i) {
       Path.copyAToB(frame[i], paths[i]);
     }
+  }
+  
+  function getWritableFrame(frameN) {
+    while(frameN + frameShift < 0) {
+      frames.unshift(frames[0].map(Path.clone));
+    }
+    while(frameN + frameShift >= frames.length) {
+      frames.push(frames[frames.length - 1].map(Path.clone));
+    }
+    return frames[frameN + frameShift];
   }
   
   let keyframeDisplayLimit = -Infinity;
@@ -95,12 +107,13 @@ export function normal(paths, selectedPaths) {
             }
           }
         } else if(key === 'p') { ///////// (P)lay
-          
+          applyFrame(paths, currentFrame);
+          return play(this, applyFrame, currentFrame, framerate);
         } else if(key === 's') { ///////// (S)crub Timeline / (S)eek
           applyFrame(paths, currentFrame);
           return seek(this, applyFrame, currentFrame);
         } else if(key === 'r') { ///////// (R)ecord
-          
+          return record(this, pins, selectionOrEverything, getWritableFrame, applyFrame, framerate, currentFrame);
         } else if(key === 'q') { ///////// Save (Q)mulative Keyframe
           cumulativeKeyframes.push(Keyframe.createCumulative(selectionOrEverything, getFrame(currentFrame)));
           keyframeDisplayLimit = currentTime + 1000;
@@ -113,6 +126,7 @@ export function normal(paths, selectedPaths) {
           frames.length = 0;
           frames[0] = paths.map(Path.clone);
           currentFrame = 0;
+          frameShift = 0;
         } else if(key === 't') { ///////// (T)est Pins
           return testPins(this, pins, selectionOrEverything);
         } else if(key === '+' || key === '=' || key === '-' || key === '_') { // Adjust Framerate
@@ -675,6 +689,101 @@ export function testPins(prev, pins, selectedPaths) {
     },
     render(ctx, scale) {
       renderPins(ctx, scale, applicablePins);
+    },
+  };
+}
+
+export function record(prev, pins, selectedPaths, getWritableFrame, applyFrame, framerate, currentFrame) {
+  const selectionDict = [];
+  for(let i = 0; i < selectedPaths.length; ++i) {
+    selectionDict[selectedPaths[i].id] = true;
+  }
+  const selection = Keyframe.getSelection(selectedPaths);
+  const applicablePins = pins.filter(pin => pin.keyframe.selection === selection);
+  const weights = [];
+  for(let i = 0; i < applicablePins.length; ++i) {
+    weights.push(0.5);
+  }
+  const originalState = Keyframe.createWholesale(selectedPaths);
+  
+  const startTime = Date.now(), startFrame = currentFrame;
+  
+  return {
+    update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys, shiftDown) {
+      if(pendingKeys.some(x => x === ' ' || x === 'Escape' || x === 'r')) {
+        return prev;
+      }
+      
+      const previousFrame = currentFrame;
+      currentFrame = ((Date.now() - startTime) * framerate / 1000 |0) + startFrame;
+      if(currentFrame !== previousFrame) {
+        const writableFrame = getWritableFrame(previousFrame);
+        for(let i = 0; i < paths.length; ++i) {
+          Path.copyAToB(paths[i], writableFrame[i]);
+        }
+        applyFrame(paths, currentFrame);
+        Keyframe.copyFromPaths(originalState, paths);
+      }
+      
+      let totalWeight = 0;
+      for(let i = 0; i < applicablePins.length; ++i) {
+        const pin = applicablePins[i];
+        const dx = pin.x - mouseX, dy = pin.y - mouseY;
+        totalWeight += (weights[i] = 1 / Math.sqrt(dx*dx + dy*dy));
+      }
+      
+      for(let i = 0; i < paths.length; ++i) {
+        if(selectionDict[paths[i].id]) {
+          Path.setToZero(paths[i]);
+        }
+      }
+      
+      if(totalWeight === totalWeight && totalWeight !== Infinity && totalWeight !== -Infinity) {
+        for(let i = 0; i < applicablePins.length; ++i) {
+          const keyframe = applicablePins[i].keyframe;
+          if(keyframe.type === 'cumulative') {
+            Keyframe.applyWholesale(paths, originalState, weights[i] / totalWeight);
+          }
+          Keyframe.applyWholesale(paths, keyframe, weights[i] / totalWeight);
+        }
+      } else {
+        for(let i = 0; i < applicablePins.length; ++i) {
+          if(weights[i] !== weights[i] || weights[i] === Infinity || weights[i] === -Infinity) {
+            const keyframe = applicablePins[i].keyframe;
+            if(keyframe.type === 'cumulative') {
+              Keyframe.applyWholesale(paths, originalState, 1);
+            }
+            Keyframe.applyWholesale(paths, keyframe, 1);
+          }
+        }
+      }
+    },
+    render(ctx, scale) {
+      renderPins(ctx, scale, applicablePins);
+    },
+  };
+}
+
+export function play(prev, applyFrame, currentFrame, framerate) {
+  const startTime = Date.now(), startFrame = currentFrame;
+  
+  return {
+    update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys, shiftDown) {
+      while(pendingKeys.length) {
+        const key = pendingKeys.pop().toLowerCase();
+        if(key === 'escape' || key === ' ' || key === 's') {
+          return prev;
+        }
+      }
+      
+      const previousFrame = currentFrame;
+      currentFrame = ((Date.now() - startTime) * framerate / 1000 |0) + startFrame;
+      if(currentFrame !== previousFrame) {
+        applyFrame(paths, currentFrame);
+      }
+    },
+    render(ctx, scale) {
+      
     },
   };
 }

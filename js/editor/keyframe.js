@@ -63,3 +63,13 @@ export function applyWholesale(paths, keyframe, amount) {
     }
   }
 }
+
+export function copyFromPaths(keyframe, paths) {
+  for(let i = 0; i < paths.length; ++i) {
+    const path = paths[i];
+    const myPath = keyframe.pathDict[path.id];
+    if(myPath) {
+      Path.copyAToB(path, myPath);
+    }
+  }
+}
