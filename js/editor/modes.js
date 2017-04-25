@@ -6,7 +6,7 @@ export function normal(paths, selectedPaths) {
   selectedPaths = selectedPaths || [];
   const frames = [paths.map(Path.clone)];
   const cumulativeKeyframes = [], wholesaleKeyframes = [], pins = [];
-  let currentFrame = 0;
+  let currentFrame = 0, framerate = 20, blinkingStartTime = Date.now();
   
   function getFrame(frameN) {
     if(frameN < 0) frameN = 0;
@@ -23,9 +23,12 @@ export function normal(paths, selectedPaths) {
   }
   
   let keyframeDisplayLimit = -Infinity;
+  let framerateDisplayLimit = -Infinity;
   
   return {
     update(renderer, paths, mouseX, mouseY, mouseDown, mouseClicked, pendingKeys, shiftDown) {
+      const currentTime = Date.now();
+      
       if(mouseClicked) {
         if(!shiftDown) {
           selectedPaths.length = 0;
@@ -100,10 +103,10 @@ export function normal(paths, selectedPaths) {
           
         } else if(key === 'q') { ///////// Save (Q)mulative Keyframe
           cumulativeKeyframes.push(Keyframe.createCumulative(selectionOrEverything, getFrame(currentFrame)));
-          keyframeDisplayLimit = Date.now() + 1000;
+          keyframeDisplayLimit = currentTime + 1000;
         } else if(key === 'w') { ///////// Save (W)holesale Keyframe
           wholesaleKeyframes.push(Keyframe.createWholesale(selectionOrEverything));
-          keyframeDisplayLimit = Date.now() + 1000;
+          keyframeDisplayLimit = currentTime + 1000;
         } else if(key === 'k') { ///////// Manage (K)eyframes
           return manageKeyframes(this, wholesaleKeyframes, cumulativeKeyframes, pins, selectionOrEverything);
         } else if(key === ' ') { ///////// Flatten Timeline
@@ -112,6 +115,15 @@ export function normal(paths, selectedPaths) {
           currentFrame = 0;
         } else if(key === 't') { ///////// (T)est Pins
           return testPins(this, pins, selectionOrEverything);
+        } else if(key === '+' || key === '=' || key === '-' || key === '_') { // Adjust Framerate
+          const blinkPeriod = ((currentTime - blinkingStartTime) * framerate / 1000) % 2;
+          if(key === '+' || key === '=') { // Increase
+            ++framerate;
+          } else if(key === '-' || key === '_') { // Decrease
+            --framerate;
+          }
+          blinkingStartTime = currentTime - blinkPeriod * 1000 / framerate;
+          framerateDisplayLimit = currentTime + 2000;
         }
       }
     },
@@ -120,9 +132,15 @@ export function normal(paths, selectedPaths) {
         renderOutline(ctx, scale, selectedPaths[i]);
       }
       
-      if(Date.now() < keyframeDisplayLimit) {
+      const currentTime = Date.now();
+      if(currentTime < keyframeDisplayLimit) {
         renderKeyframes(ctx, scale, cumulativeKeyframes, -10);
         renderKeyframes(ctx, scale, wholesaleKeyframes, 80);
+      }
+      if(currentTime < framerateDisplayLimit) {
+        const blinkPeriod = ((currentTime - blinkingStartTime) * framerate / 1000) % 2;
+        ctx.fillStyle = blinkPeriod < 1 ? 'white' : 'black';
+        ctx.fillRect(0, 0, 5, 5);
       }
     },
   };
